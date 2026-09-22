@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "name": "Medical_virology",
+    "topic": "Medical research papers on virology",
+    "slug": "medical_virology",
+    "jsonl_file": "ds_0001_medical_virology.jsonl",
+    "bin_prefix": "ds_0001_medical_virology",
+    "binary_ready": true,
+    "doc_count": 1,
+    "failed_rule": 0,
+    "failed_ai": 0,
+    "created_at": "2026-09-17T19:22:01",
+    "checksum": "74723e40e818dc4c54e7d42b1d44d973"
+  }
+]

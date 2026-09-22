@@ -1,0 +1,22 @@
+# Python bytecode and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Local environments and package build metadata
+venv/
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Local installer/runtime state
+.python_path
+models/*.Modelfile
+models/registry.json
+
+# Local logs and editor files
+*.log
+.DS_Store
+.vscode/

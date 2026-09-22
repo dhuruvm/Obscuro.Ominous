@@ -1,0 +1,6 @@
+Pipeline Layer,Industry Standard Tools
+Orchestration,"Apache Airflow, Prefect, Ray"
+Large-Scale Extraction,"Trafilatura, Resiliparse, Apache Spark"
+Deduplication,"text-dedup (Rust/Python), MinHash LSH"
+Quality Filtering,"FastText, KenLM (Language Model Perplexity)"
+Final Packaging,"Hugging Face datasets, Megatron-LM indexed_dataset"

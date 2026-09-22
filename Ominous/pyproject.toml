@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "obscuro-ominous"
+version = "2.0.0"
+description = "Obscuro Ominous - Autonomous AI Data Pipeline & Training System"
+requires-python = ">=3.8"
+dependencies = [
+    "rich>=13.0.0",
+    "requests>=2.31.0",
+    "httpx>=0.27.0",
+    "beautifulsoup4>=4.12.0",
+    "tiktoken>=0.7.0",
+    "numpy>=1.24.0",
+]
+
+[project.scripts]
+obscuro = "cli:main"
+obscuro-ominous = "cli:main"
+datacollector = "cli:main"
+
+[tool.setuptools]
+py-modules = ["cli", "reader", "generate_dummy"]
+
+[tool.setuptools.packages.find]
+include = ["pipeline*", "io_module*", "workers*"]

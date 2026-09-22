@@ -1,0 +1,11 @@
+services:
+  obscuro-ominous:
+    build: .
+    image: obscuro-ominous:latest
+    stdin_open: true
+    tty: true
+    working_dir: /app
+    volumes:
+      - ./datasets:/app/datasets
+    environment:
+      PYTHONUNBUFFERED: "1"
