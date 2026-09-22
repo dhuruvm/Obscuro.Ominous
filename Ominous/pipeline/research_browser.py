@@ -28,46 +28,121 @@ BROWSER_HEADERS = {
 }
 
 # ─────────────────────────────────────────────
-# URL Discovery via DuckDuckGo
+# URL Discovery via multiple public search engines
 # ─────────────────────────────────────────────
+
+def _extract_candidate_url(href: str) -> str:
+    """Normalize redirected URLs from common search wrappers."""
+    if not href:
+        return ""
+
+    if href.startswith("/l/?"):
+        parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
+        href = parsed.get("uddg", [""])[0]
+
+    if href.startswith("/url?"):
+        parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
+        href = parsed.get("q", [""])[0]
+
+    if href.startswith("http://") or href.startswith("https://"):
+        return href
+
+    return ""
+
+
+def _dedupe_urls(urls: list[str]) -> list[str]:
+    seen = set()
+    cleaned = []
+    for url in urls:
+        if not url:
+            continue
+        parsed = urllib.parse.urlsplit(url)
+        if not parsed.scheme or not parsed.netloc:
+            continue
+        norm = url.rstrip("/")
+        if norm in seen:
+            continue
+        seen.add(norm)
+        cleaned.append(norm)
+    return cleaned
+
 
 def search_duckduckgo(query: str, max_results: int = 5) -> list[str]:
     """Search DuckDuckGo HTML and return a list of result URLs."""
     try:
         encoded = urllib.parse.quote_plus(query)
-        url = f"https://html.duckduckgo.com/html/?q={encoded}"
-        resp = requests.get(url, headers=BROWSER_HEADERS, timeout=10)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        sources = [
+            ("https://html.duckduckgo.com/html/?q={encoded}", ["a.result__a", "a.result-link"]),
+            ("https://lite.duckduckgo.com/lite/?q={encoded}", ["a.result-link", "a"]),
+        ]
 
-        urls = []
-        for a in soup.select("a.result__a"):
-            href = a.get("href", "")
-            # Handle DuckDuckGo redirect wrapper
-            if not href:
-                continue
-            if href.startswith("/l/?"):
-                parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
-                href = parsed.get("uddg", [""])[0]
-            if href.startswith("http") and "duckduckgo" not in href:
-                urls.append(href)
-            if len(urls) >= max_results:
-                break
-
-        # Fallback: grab any external links if above fails
-        if not urls:
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                if href.startswith("http") and "duckduckgo" not in href:
-                    urls.append(href)
+        for url_template, selectors in sources:
+            url = url_template.format(encoded=encoded)
+            resp = requests.get(url, headers=BROWSER_HEADERS, timeout=12)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            urls = []
+            for selector in selectors:
+                for a in soup.select(selector):
+                    href = _extract_candidate_url(a.get("href", ""))
+                    if href and "duckduckgo" not in href.lower():
+                        urls.append(href)
+                    if len(urls) >= max_results:
+                        break
                 if len(urls) >= max_results:
                     break
 
-        return urls
+            if urls:
+                return _dedupe_urls(urls)[:max_results]
+
+            # Fallback: scan all links in page for any external destination
+            for a in soup.find_all("a", href=True):
+                href = _extract_candidate_url(a.get("href", ""))
+                if href and "duckduckgo" not in href.lower():
+                    urls.append(href)
+                if len(urls) >= max_results:
+                    break
+            if urls:
+                return _dedupe_urls(urls)[:max_results]
+
+        return []
 
     except Exception as e:
         console.print(f"[red]DuckDuckGo search error: {e}[/red]")
         return []
+
+
+def search_bing(query: str, max_results: int = 5) -> list[str]:
+    """Search Bing as a fallback when DuckDuckGo is sparse or blocked."""
+    try:
+        encoded = urllib.parse.quote_plus(query)
+        url = f"https://www.bing.com/search?q={encoded}"
+        resp = requests.get(url, headers=BROWSER_HEADERS, timeout=12)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        urls = []
+        for a in soup.select("li.b_algo a[href], a[href]"):
+            href = _extract_candidate_url(a.get("href", ""))
+            if href and "bing.com" not in href.lower():
+                urls.append(href)
+            if len(urls) >= max_results:
+                break
+        return _dedupe_urls(urls)[:max_results]
+    except Exception:
+        return []
+
+
+def search_web_sources(query: str, max_results: int = 6) -> list[str]:
+    """Collect URLs from multiple public search sources, preserving the highest-quality matches."""
+    collected: list[str] = []
+    for finder in (search_duckduckgo, search_bing):
+        urls = finder(query, max_results=max_results)
+        for url in urls:
+            if url not in collected:
+                collected.append(url)
+        if len(collected) >= max_results:
+            break
+    return collected[:max_results]
 
 
 # ─────────────────────────────────────────────
@@ -138,38 +213,38 @@ def scrape_page(url: str) -> str:
 
 def research(keyword: str, progress=None, browser_task=None, min_chars: int = 300) -> tuple[str, list[str]]:
     """
-    Researches a keyword using multiple sources in order of quality.
-    Returns (best_text, list_of_urls_visited).
-    Updates progress task with current URL being browsed.
+    Researches a keyword across multiple sources and returns the combined text plus all visited URLs.
+    This keeps the API stable while allowing richer source aggregation.
     """
     visited_urls = []
-    best_text = ""
+    collected_parts = []
 
     def _update(msg):
         if progress and browser_task is not None:
             progress.update(browser_task, description=f"[cyan]🌐 {msg[:70]}")
 
-    # ── Source 1: Wikipedia (best for factual text) ──────────────
     _update(f"Wikipedia: {keyword}")
     wiki_url, wiki_text = fetch_wikipedia(keyword)
     if wiki_url:
         visited_urls.append(wiki_url)
-    if wiki_text and len(wiki_text) > min_chars:
-        best_text = wiki_text
+    if wiki_text and len(wiki_text) > 80:
+        collected_parts.append(wiki_text)
         _update(f"✓ Wikipedia hit ({len(wiki_text):,} chars)")
 
-    # ── Source 2: DuckDuckGo web search ─────────────────────────
-    if len(best_text) < min_chars:
-        _update(f"Searching web: {keyword}")
-        urls = search_duckduckgo(keyword, max_results=5)
-        for url in urls:
-            visited_urls.append(url)
-            _update(f"Reading: {url[:65]}")
-            text = scrape_page(url)
-            if len(text) > len(best_text):
-                best_text = text
-            if len(best_text) > 2000:
-                break
-            time.sleep(0.3)  # polite delay
+    _update(f"Searching web: {keyword}")
+    urls = search_web_sources(keyword, max_results=6)
+    for url in urls:
+        if url in visited_urls:
+            continue
+        visited_urls.append(url)
+        _update(f"Reading: {url[:65]}")
+        text = scrape_page(url)
+        if text and len(text.strip()) > 120:
+            collected_parts.append(text.strip())
+        time.sleep(0.2)
 
-    return best_text.strip(), visited_urls
+    combined_text = "\n\n".join(part.strip() for part in collected_parts if part and part.strip())
+    if len(combined_text) < min_chars:
+        return combined_text.strip(), visited_urls
+
+    return combined_text.strip(), visited_urls

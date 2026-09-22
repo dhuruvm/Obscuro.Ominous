@@ -23,103 +23,77 @@ st.markdown(
     <style>
     :root {
         --bg: #0b1020;
-        --panel: #121a2b;
-        --panel-2: #17233b;
-        --line: rgba(148, 163, 184, 0.18);
-        --text: #e5eefb;
-        --muted: #9fb0d0;
-        --brand: #7c9cff;
-        --brand-2: #73f0d1;
-        --success: #5ee6a8;
+        --panel: #111b2e;
+        --panel-2: #172742;
+        --line: rgba(148, 163, 184, 0.22);
+        --text: #edf4ff;
+        --muted: #a7bad9;
+        --brand: #7aa2ff;
+        --brand-2: #6ee7c8;
+        --success: #67e8a7;
         --warning: #fbbf24;
         --danger: #f87171;
+        --shadow: rgba(0,0,0,0.25);
     }
-
     .stApp {
-        background: linear-gradient(180deg, #0b1020 0%, #111827 100%);
+        background: linear-gradient(180deg, #0a1120 0%, #0f172a 100%);
         color: var(--text);
     }
-
     div[data-testid="stSidebar"] {
-        background: rgba(15, 23, 42, 0.95);
+        background: rgba(15, 23, 42, 0.98);
         border-right: 1px solid var(--line);
     }
-
     .block-container {
-        padding-top: 1.2rem;
+        padding-top: 1.1rem;
         padding-bottom: 2rem;
     }
-
-    .headline {
-        font-size: 2.55rem;
+    .title {
+        font-size: 2.7rem;
         font-weight: 800;
         letter-spacing: -0.06em;
-        margin-bottom: 0.2rem;
+        margin: 0;
     }
-
     .subtitle {
         color: var(--muted);
         font-size: 1rem;
         margin-bottom: 1.2rem;
     }
-
     .status-box {
-        background: rgba(124, 156, 255, 0.08);
-        border: 1px solid rgba(124, 156, 255, 0.22);
-        border-radius: 16px;
-        padding: 0.9rem 1rem;
+        background: rgba(122, 162, 255, 0.08);
+        border: 1px solid rgba(122, 162, 255, 0.28);
+        border-radius: 14px;
+        padding: 0.8rem 1rem;
         margin-bottom: 1rem;
     }
-
     .metric-card {
-        background: linear-gradient(180deg, rgba(18, 26, 43, 0.96), rgba(23, 35, 59, 0.9));
+        background: linear-gradient(180deg, rgba(17, 27, 46, 0.95), rgba(23, 39, 66, 0.9));
         border: 1px solid var(--line);
         border-radius: 16px;
-        padding: 0.85rem 1rem;
-        height: 100%;
+        padding: 0.9rem 1rem;
+        min-height: 100px;
+        box-shadow: 0 8px 22px var(--shadow);
     }
-
     .metric-label {
         color: var(--muted);
-        font-size: 0.75rem;
-        text-transform: uppercase;
+        font-size: 0.72rem;
         letter-spacing: 0.08em;
+        text-transform: uppercase;
     }
-
     .metric-value {
         font-size: 1.7rem;
         font-weight: 700;
-        color: var(--text);
         margin-top: 0.35rem;
     }
-
     .section-card {
-        background: rgba(15, 23, 42, 0.72);
+        background: rgba(15, 23, 42, 0.8);
         border: 1px solid var(--line);
         border-radius: 18px;
         padding: 1rem 1.1rem;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 10px 28px var(--shadow);
     }
-
-    .small-note {
-        color: var(--muted);
-        font-size: 0.8rem;
-    }
-
-    [data-testid="stTabs"] {
-        margin-top: 0.7rem;
-    }
-
-    [data-baseweb="tab-list"] {
-        gap: 0.5rem;
-    }
-
-    [data-baseweb="tab"] {
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid var(--line);
-        border-radius: 12px 12px 0 0;
-        padding: 0.5rem 0.9rem;
-    }
+    [data-testid="stTabs"] { margin-top: 0.8rem; }
+    [data-baseweb="tab-list"] { gap: 0.4rem; }
+    [data-baseweb="tab"] { background: rgba(15, 23, 42, 0.8); border: 1px solid var(--line); border-radius: 12px 12px 0 0; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -148,9 +122,7 @@ def render_status_banner() -> None:
     if ollama_ready:
         st.markdown(
             """
-            <div class="status-box">
-                <strong>System status:</strong> Ollama is online and ready for local model inference.
-            </div>
+            <div class="status-box"><strong>System status:</strong> Ollama is online and ready for local model inference.</div>
             """,
             unsafe_allow_html=True,
         )
@@ -158,8 +130,46 @@ def render_status_banner() -> None:
         st.warning("Ollama is not running. Start Ollama locally before using model-driven features.")
 
 
+def build_dataset_from_topic(topic: str, selected_model: str | None = None, dataset_name: str | None = None):
+    if not topic.strip():
+        st.warning("Please enter a topic first.")
+        return None
+
+    with st.spinner("Researching and assembling a dataset..."):
+        text, urls = research(topic.strip(), min_chars=300)
+
+    if not text:
+        st.warning("No research content was collected for this topic.")
+        return None
+
+    text_blocks = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if not text_blocks:
+        text_blocks = [text.strip()]
+
+    documents = []
+    for idx, block in enumerate(text_blocks[:8], 1):
+        cleaned = block[:2500]
+        if len(cleaned) < 120:
+            continue
+        documents.append({
+            "keyword": f"{topic.lower().replace(' ', '_')}_{idx}",
+            "topic": topic,
+            "text": cleaned,
+            "source_url": urls[idx - 1] if idx - 1 < len(urls) else "research-generated",
+        })
+
+    if not documents:
+        st.warning("The collected text was too short to make a dataset.")
+        return None
+
+    dataset_label = dataset_name or f"{topic.strip().lower().replace(' ', '_')}_dataset"
+    result = verify_and_commit(documents, dataset_label, topic, model_name=selected_model)
+    st.success(f"Dataset created successfully: {result}")
+    return result
+
+
 def main() -> None:
-    st.markdown('<div class="headline">🧠 Obscuro Ominous</div>', unsafe_allow_html=True)
+    st.markdown('<div class="title">🧠 Obscuro Ominous</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Agentic data workflow, model tooling, and browser-based orchestration</div>', unsafe_allow_html=True)
 
     render_status_banner()
@@ -168,7 +178,6 @@ def main() -> None:
         st.header("Workspace")
         st.caption("Project root")
         st.code(str(ROOT))
-
         if st.button("Refresh model list", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
@@ -177,42 +186,30 @@ def main() -> None:
     default_model = pick_model()
 
     metric_cols = st.columns(4)
-    metric_cols[0].markdown(
-        """
+    metric_cols[0].markdown(f"""
         <div class="metric-card">
             <div class="metric-label">Available models</div>
-            <div class="metric-value">{}</div>
+            <div class="metric-value">{len(models)}</div>
         </div>
-        """.format(len(models)),
-        unsafe_allow_html=True,
-    )
-    metric_cols[1].markdown(
-        """
+    """, unsafe_allow_html=True)
+    metric_cols[1].markdown("""
         <div class="metric-card">
             <div class="metric-label">Selected backend</div>
             <div class="metric-value">Ollama</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    metric_cols[2].markdown(
-        """
+    """, unsafe_allow_html=True)
+    metric_cols[2].markdown("""
         <div class="metric-card">
             <div class="metric-label">Mode</div>
             <div class="metric-value">Local</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    metric_cols[3].markdown(
-        """
+    """, unsafe_allow_html=True)
+    metric_cols[3].markdown("""
         <div class="metric-card">
             <div class="metric-label">Workflow</div>
             <div class="metric-value">Web</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
     tabs = st.tabs(["Research", "Chat", "Datasets", "Models"])
 
@@ -220,16 +217,17 @@ def main() -> None:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.subheader("Research hub")
         topic = st.text_input("Search topic", value="medical virology", placeholder="Example: virology research corpus")
-        col1, col2 = st.columns([3, 1])
-        with col1:
+        research_col, action_col = st.columns([3, 1])
+        with research_col:
             search_btn = st.button("Run research", use_container_width=True)
-        with col2:
+        with action_col:
             st.caption("Quality-first source collection")
+
         if search_btn:
-            with st.spinner("Searching and collecting source material..."):
+            with st.spinner("Searching across sources..."):
                 try:
                     text, urls = research(topic, min_chars=300)
-                except Exception as exc:  # pragma: no cover - UI safety
+                except Exception as exc:
                     st.error(f"Research failed: {exc}")
                     text, urls = "", []
 
@@ -239,7 +237,11 @@ def main() -> None:
                 st.success(f"Collected {len(text):,} characters from {len(urls)} visited source(s).")
                 st.write("Visited URLs")
                 st.json(urls[:10])
-                st.text_area("Research result", text[:4000], height=300)
+                st.text_area("Research result", text[:6000], height=300)
+
+                if st.button("Create dataset from this research", use_container_width=True):
+                    selected_model = default_model if default_model else None
+                    build_dataset_from_topic(topic, selected_model=selected_model)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[1]:
@@ -248,21 +250,13 @@ def main() -> None:
         if not models:
             st.info("No Ollama models are available yet. Pull a model in the Models tab.")
         else:
-            selected_model = st.selectbox(
-                "Model",
-                models,
-                index=models.index(default_model) if default_model in models else 0,
-            )
-            prompt = st.text_area(
-                "Prompt",
-                value="Give me a concise summary of medical virology in 5 bullet points.",
-                height=135,
-            )
+            selected_model = st.selectbox("Model", models, index=models.index(default_model) if default_model in models else 0)
+            prompt = st.text_area("Prompt", value="Give me a concise summary of medical virology in 5 bullet points.", height=135)
             if st.button("Send prompt", use_container_width=True):
                 with st.spinner("Generating response..."):
                     try:
                         response = generate_text(selected_model, prompt, timeout=120)
-                    except Exception as exc:  # pragma: no cover - UI safety
+                    except Exception as exc:
                         st.error(f"Model call failed: {exc}")
                         response = ""
                 if response:
@@ -271,30 +265,29 @@ def main() -> None:
 
     with tabs[2]:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Dataset commit")
+        st.subheader("Dataset tools")
         if not models:
             st.info("Add a model first before validating and committing a dataset.")
         else:
             selected_model = st.selectbox("Verification model", models, key="dataset_model")
-            dataset_name = st.text_input("Dataset name", value="medical_virology_dataset")
-            topic = st.text_input("Dataset topic", value="Medical virology")
-            raw_docs = st.text_area(
-                "Paste documents",
-                value="Sample document one.\n\nSample document two.\n\nSample document three.",
-                height=220,
-            )
+        dataset_name = st.text_input("Dataset name", value="medical_virology_dataset")
+        topic = st.text_input("Dataset topic", value="Medical virology", key="dataset_topic")
+        raw_docs = st.text_area("Paste documents", value="Sample document one.\n\nSample document two.\n\nSample document three.", height=220)
+
+        col_manual, col_auto = st.columns(2)
+        with col_manual:
             if st.button("Verify and commit dataset", use_container_width=True):
                 paragraphs = [p.strip() for p in raw_docs.split("\n\n") if p.strip()]
-                documents = [
-                    {"keyword": f"doc_{index + 1}", "topic": topic, "text": paragraph}
-                    for index, paragraph in enumerate(paragraphs)
-                ]
+                documents = [{"keyword": f"doc_{idx + 1}", "topic": topic, "text": paragraph} for idx, paragraph in enumerate(paragraphs)]
                 if not documents:
                     st.warning("Please enter at least one document before committing.")
                 else:
                     with st.spinner("Verifying and saving dataset..."):
-                        result = verify_and_commit(documents, dataset_name, topic, model_name=selected_model)
+                        result = verify_and_commit(documents, dataset_name, topic, model_name=selected_model if models else None)
                     st.success(f"Dataset result: {result}")
+        with col_auto:
+            if st.button("Auto-generate dataset", use_container_width=True):
+                build_dataset_from_topic(topic, selected_model=selected_model if models else None, dataset_name=dataset_name)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[3]:
@@ -305,7 +298,7 @@ def main() -> None:
             with st.spinner(f"Pulling {model_name}..."):
                 try:
                     ok = pull_model(model_name)
-                except Exception as exc:  # pragma: no cover - UI safety
+                except Exception as exc:
                     st.error(f"Pull failed: {exc}")
                     ok = False
             if ok:

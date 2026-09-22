@@ -12,5 +12,33 @@
     "failed_ai": 0,
     "created_at": "2026-09-17T19:22:01",
     "checksum": "74723e40e818dc4c54e7d42b1d44d973"
+  },
+  {
+    "id": 2,
+    "name": "medical_virology_dataset",
+    "topic": "Medical virology",
+    "slug": "medical_virology_dataset",
+    "jsonl_file": "ds_0002_medical_virology_dataset.jsonl",
+    "bin_prefix": "ds_0002_medical_virology_dataset",
+    "binary_ready": true,
+    "doc_count": 3,
+    "failed_rule": 0,
+    "failed_ai": 0,
+    "created_at": "2026-09-22T20:03:28",
+    "checksum": "88892d1aaca4b17368aac419077f6352"
+  },
+  {
+    "id": 3,
+    "name": "medical_virology_dataset",
+    "topic": "Medical virology",
+    "slug": "medical_virology_dataset",
+    "jsonl_file": "ds_0003_medical_virology_dataset.jsonl",
+    "bin_prefix": "ds_0003_medical_virology_dataset",
+    "binary_ready": true,
+    "doc_count": 3,
+    "failed_rule": 0,
+    "failed_ai": 0,
+    "created_at": "2026-09-22T20:03:54",
+    "checksum": "88892d1aaca4b17368aac419077f6352"
   }
 ]

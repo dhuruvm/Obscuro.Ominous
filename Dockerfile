@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     STREAMLIT_SERVER_HEADLESS=true \
     STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
-    STREAMLIT_SERVER_PORT=10000
+    PORT=10000
 
 WORKDIR /app
 
@@ -21,4 +21,4 @@ COPY work.txt ./work.txt
 
 EXPOSE 10000
 
-CMD ["streamlit", "run", "StreamLit/app.py", "--server.address", "0.0.0.0", "--server.port", "10000", "--server.headless", "true"]
+CMD ["sh", "-c", "streamlit run StreamLit/app.py --server.address 0.0.0.0 --server.port ${PORT:-10000} --server.headless true"]
