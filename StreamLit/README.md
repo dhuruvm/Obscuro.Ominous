@@ -1,6 +1,6 @@
 # StreamLit UI
 
-This folder contains the browser-based interface for the Obscuro Ominous toolkit.
+This folder contains the browser-first interface for the Obscuro Ominous toolkit.
 
 ## Run locally
 
@@ -8,9 +8,8 @@ From the repository root:
 
 ```bash
 python -m pip install -r Ominous/requirements.txt
-python -m pip install streamlit
 streamlit run StreamLit/app.py
 ```
 
-The app exposes the main toolset in a browser UI and keeps the existing CLI workflow available for local terminal use.
+The app is designed to run as a Streamlit-only experience. It prefers ONNX Runtime for local inference and falls back to Ollama automatically when available. The browser workflow covers research, dataset generation, verification, and model usage without requiring the terminal-only CLI path.
 

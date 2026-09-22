@@ -1,3 +1,4 @@
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -11,6 +12,9 @@ if str(OMINOUS_PATH) not in sys.path:
 from pipeline.dataset_store import verify_and_commit
 from pipeline.model_manager import generate_text, list_local_models, pull_model, ensure_ollama_running
 from pipeline.research_browser import research
+
+HAS_ONNXRUNTIME = importlib.util.find_spec("onnxruntime") is not None
+HAS_TRANSFORMERS = importlib.util.find_spec("transformers") is not None
 
 st.set_page_config(
     page_title="Obscuro Ominous",
@@ -117,9 +121,24 @@ def pick_model(default: str | None = None) -> str | None:
     return models[0]
 
 
+def detect_runtime_backend() -> str:
+    if HAS_ONNXRUNTIME:
+        return "ONNX Runtime"
+    if ensure_ollama_running():
+        return "Ollama"
+    return "Unavailable"
+
+
 def render_status_banner() -> None:
-    ollama_ready = ensure_ollama_running()
-    if ollama_ready:
+    backend = detect_runtime_backend()
+    if backend == "ONNX Runtime":
+        st.markdown(
+            """
+            <div class="status-box"><strong>System status:</strong> ONNX Runtime is available and ready for local inference inside Streamlit.</div>
+            """,
+            unsafe_allow_html=True,
+        )
+    elif backend == "Ollama":
         st.markdown(
             """
             <div class="status-box"><strong>System status:</strong> Ollama is online and ready for local model inference.</div>
@@ -127,7 +146,35 @@ def render_status_banner() -> None:
             unsafe_allow_html=True,
         )
     else:
-        st.warning("Ollama is not running. Start Ollama locally before using model-driven features.")
+        st.warning("No local inference backend is available yet. Install ONNX Runtime or start Ollama before using model-driven features.")
+
+
+def call_model_backend(model_name: str, prompt: str, timeout: int = 120, max_tokens: int | None = None):
+    """Streamlit-first model call that prefers ONNX Runtime and falls back to Ollama cleanly."""
+    if model_name and model_name.lower().startswith("onnx"):
+        if not HAS_ONNXRUNTIME:
+            return "ONNX Runtime is not installed in this environment. Install onnxruntime to use the ONNX backend."
+        try:
+            from transformers import pipeline
+            pipe = pipeline("text-generation", model=model_name, device=-1)
+            text = pipe(prompt, max_new_tokens=max_tokens or 200, do_sample=True)[0]["generated_text"]
+            return text
+        except Exception as exc:
+            return f"ONNX inference failed: {exc}"
+
+    if ensure_ollama_running():
+        return generate_text(model_name, prompt, timeout=timeout, max_tokens=max_tokens)
+
+    if HAS_TRANSFORMERS:
+        try:
+            from transformers import pipeline
+            pipe = pipeline("text-generation", model="distilgpt2", device=-1)
+            text = pipe(prompt, max_new_tokens=max_tokens or 200, do_sample=True)[0]["generated_text"]
+            return text
+        except Exception as exc:
+            return f"Local fallback model failed: {exc}"
+
+    return "No inference backend is available. Install ONNX Runtime or start Ollama and then retry."
 
 
 def build_dataset_from_topic(topic: str, selected_model: str | None = None, dataset_name: str | None = None):
@@ -185,6 +232,7 @@ def main() -> None:
     models = get_models()
     default_model = pick_model()
 
+    backend_name = detect_runtime_backend()
     metric_cols = st.columns(4)
     metric_cols[0].markdown(f"""
         <div class="metric-card">
@@ -192,10 +240,10 @@ def main() -> None:
             <div class="metric-value">{len(models)}</div>
         </div>
     """, unsafe_allow_html=True)
-    metric_cols[1].markdown("""
+    metric_cols[1].markdown(f"""
         <div class="metric-card">
             <div class="metric-label">Selected backend</div>
-            <div class="metric-value">Ollama</div>
+            <div class="metric-value">{backend_name}</div>
         </div>
     """, unsafe_allow_html=True)
     metric_cols[2].markdown("""
@@ -255,7 +303,7 @@ def main() -> None:
             if st.button("Send prompt", use_container_width=True):
                 with st.spinner("Generating response..."):
                     try:
-                        response = generate_text(selected_model, prompt, timeout=120)
+                        response = call_model_backend(selected_model, prompt, timeout=120)
                     except Exception as exc:
                         st.error(f"Model call failed: {exc}")
                         response = ""
